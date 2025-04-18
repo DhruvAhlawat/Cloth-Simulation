@@ -94,7 +94,7 @@ namespace COL781 {
 			glm::mat4 dollyTransform = glm::mat4(1.0f);
 			dollyTransform = glm::translate(dollyTransform, normalize(camera.lookAt - camera.position) * deltaY);
 			glm::vec3 newCameraPosition = dollyTransform * glm::vec4(camera.position, 1.0f);
-			float newCameraFov = 2 * glm::atan(600.0f / (2 * deltaY)); // TODO Ask
+			float newCameraFov = 2 * glm::atan(150.0f / (2 * deltaY)); // TODO Ask
 					
 			if(signbit(newCameraPosition.z) == signbit(camera.position.z)) {
 				camera.position = newCameraPosition;

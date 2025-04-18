@@ -9,6 +9,7 @@ using namespace std;
 
 GL::Rasterizer r;
 GL::ShaderProgram program;
+float gravity = 9.8f;
 
 const int nv = 4, nt = 2, ne = 4;
 vec3 vertices[nv];
@@ -24,7 +25,7 @@ CameraControl camCtl;
 Cloth cloth;
 void initializeCloth()
 {
-	cloth = Cloth(1, 1, 5, 5);
+	cloth = Cloth(1, 1, 5, 5, 2000, 100, 10, 0.005, 50);
 	object = cloth.setupObject(r);
 }
 
@@ -69,7 +70,10 @@ void updateScene(float t)
 
 void update(float t)
 {
+	cloth.update(t, gravity);
+	r.updateVertexAttribs(cloth.vertexBuf, cloth.positions.size(), cloth.positions.data());
 
+	//not updating the normals yet.
 }
 
 int main() {
@@ -86,11 +90,15 @@ int main() {
 
 	// initializeScene();
 	initializeCloth();
-
-	while (!r.shouldQuit()) {
-        float t = SDL_GetTicks64()*1e-3;
+	float last = SDL_GetTicks64()*1e-3;
+	while (!r.shouldQuit()) 
+	{
+		float cur = SDL_GetTicks64()*1e-3;
+        float deltaT = cur - last;
+		last = cur;
 		// updateScene(t);
-
+		cout << deltaT << endl;
+		update(0.004);
 		camCtl.update();
 		Camera &camera = camCtl.camera;
 
