@@ -1,11 +1,10 @@
 #include "camera.hpp"
-#include "cloth.hpp"
+
 #include <iostream>
 
 using namespace COL781;
 namespace GL = COL781::OpenGL;
 using namespace glm;
-using namespace std;
 
 GL::Rasterizer r;
 GL::ShaderProgram program;
@@ -21,15 +20,7 @@ GL::AttribBuf vertexBuf, normalBuf;
 
 CameraControl camCtl;
 
-Cloth cloth;
-void initializeCloth()
-{
-	cloth = Cloth(1, 1, 5, 5);
-	object = cloth.setupObject(r);
-}
-
-void initializeScene() 
-{
+void initializeScene() {
 	object = r.createObject();
 	vertices[0] = vec3(0, 0, 1);
 	vertices[1] = vec3(1, 0, 1);
@@ -51,8 +42,7 @@ void initializeScene()
 	r.createEdgeIndices(object, ne, edges);
 }
 
-void updateScene(float t) 
-{
+void updateScene(float t) {
 	float freq = 2, amp = 1;
 	float phase0 = 0, phase1 = 0.5;
 	float theta0 = amp*cos(freq*t + phase0), theta1 = amp*cos(freq*t + phase1);
@@ -64,12 +54,6 @@ void updateScene(float t)
 	normals[2] = glm::normalize(glm::cross(vertices[3]-vertices[2], vertices[1]-vertices[2]));
 	normals[3] = glm::normalize(glm::cross(vertices[0]-vertices[3], vertices[2]-vertices[3]));
 	r.updateVertexAttribs(normalBuf, nv, normals);
-}
-
-
-void update(float t)
-{
-
 }
 
 int main() {
@@ -84,12 +68,11 @@ int main() {
 		r.fsBlinnPhong()
 	);
 
-	// initializeScene();
-	initializeCloth();
+	initializeScene();
 
 	while (!r.shouldQuit()) {
         float t = SDL_GetTicks64()*1e-3;
-		// updateScene(t);
+		updateScene(t);
 
 		camCtl.update();
 		Camera &camera = camCtl.camera;
