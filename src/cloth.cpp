@@ -56,7 +56,6 @@ COL781::OpenGL::Object Cloth::setupObject(COL781::OpenGL::Rasterizer &r)
     return object;
 }
 
-
 void Cloth::recalculateNormals()
 {
     //this function will recalculate the normals based on the triangles. 
@@ -86,7 +85,6 @@ void Cloth::recalculateNormals()
         }
     }
 }
-
 
 void Cloth::updateForce(int a, int b, int x, int y, float k, float deflen, float dampK) //k is for spring constant, len is defaultLen
 {
@@ -158,7 +156,6 @@ void Cloth::updateConstraints(int solverIterations, float constrain_K, float del
         }
     }
 }
-
 
 void Cloth::calculateForces(float g)
 {
@@ -339,3 +336,38 @@ COL781::OpenGL::Object Sphere::setupObject(COL781::OpenGL::Rasterizer &r)
     return object;
 }
 
+void handleCollisions(Cloth &c, Sphere &s, float coeff) //coeff is the coefficient of restitution.
+{
+    //detect collisions between c and s and appropriately change the positions of the cloth vertices. 
+    for(int i = 0; i < c.nYvertices; i++)
+    {
+        for(int j = 0; j < c.nXvertices; j++)
+        {
+            int cur = i*c.nY + j; 
+            vec3 curpos = c.intermediatePositions[cur];
+            vec3 spherepos = s.positions[cur];            
+            vec3 diff = curpos - spherepos;
+
+            float dist = glm::length(diff);
+            vec3 normal = diff/dist;
+            if(dist < s.collisionRadius)
+            {
+                //we have a collision. now we will compute the velocities along the normal direction. 
+                float sphereSpeed = glm::dot(s.velocity, normal); 
+                float clothSpeed = glm::dot(c.velocities[cur], normal);
+                float relativeSpeed = sphereSpeed - clothSpeed;
+                if(relativeSpeed < 0) continue; //assume no collision here if velocities are going away in the normal direction.
+                float newRelativeSpeed = relativeSpeed * coeff; //this is the new relative velocity that we should have. 
+                
+                //therefore the new cloth speed should be.
+                float newClothSpeed = sphereSpeed + newRelativeSpeed;
+                c.velocities[cur] += (-clothSpeed + newClothSpeed) * normal; 
+                //this accounts for hte normal force that is instantaneously applied by the ball on this cloth. 
+                
+                c.intermediatePositions[cur] += (s.collisionRadius - dist) * normal; //this is the new position of the cloth vertex.
+            }
+
+        }
+    }
+
+}

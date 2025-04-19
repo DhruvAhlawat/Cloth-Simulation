@@ -40,8 +40,6 @@ void initializeSphere()
 }
 
 
-
-
 void initializeScene() 
 {
 	object = r.createObject();
@@ -84,6 +82,7 @@ void updateScene(float t)
 void update(float t)
 {
 	cloth.update(t, gravity);
+	handleCollisions(cloth, sphere, 0.1);
 	r.updateVertexAttribs(cloth.vertexBuf, cloth.positions.size(), cloth.positions.data());
 	//not updating the normals yet.
 }
@@ -144,7 +143,7 @@ int main() {
 		r.setUniform(program, "ambientColor", 0.2f*white);
 		r.setUniform(program, "extdiffuseColor", 0.9f*sphere.color);
 		r.setUniform(program, "intdiffuseColor", 0.4f*sphere.color);
-		r.setUniform(program, "specularColor", 0.5f*white + 0.2f*sphere.color);
+		r.setUniform(program, "specularColor", 0.7f*white + 0.2f*sphere.color);
 		r.setUniform(program, "phongExponent", 20.f);
 		r.drawTriangles(sphereObject);
 

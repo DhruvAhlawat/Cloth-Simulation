@@ -10,11 +10,13 @@ using namespace glm;
 using namespace std;
 
 
+
 class Sphere
 {
 	public:
 	float radius, collisionRadius;
 	vec3 center;
+	vec3 velocity;
 	vec3 color;
 
 	COL781::OpenGL::AttribBuf vertexBuf, normalBuf;
@@ -101,7 +103,8 @@ class Cloth
 	void constrain(int a, int b, int x, int y, float k, float deflen); //k is for spring constant, len is defaultLen
 	void update(float dt, float g);
 	void updateConstraints(int solverIterations = 10, float constrain_K = 0.8, float deltaT = 0.005);
-
+	// void collisionDetection();
 };
 
+void handleCollisions(Cloth &c, Sphere &s, float coeff); //coeff is the coefficient of restitution.
 #endif
