@@ -41,6 +41,8 @@ void Cloth::setupVertices()
             }
         }
     }
+
+    intermediatePositions = positions; //initially they are the same.
 }
 
 COL781::OpenGL::Object Cloth::setupObject(COL781::OpenGL::Rasterizer &r)
@@ -103,6 +105,60 @@ void Cloth::updateForce(int a, int b, int x, int y, float k, float deflen, float
     //updates the forces on both the particles due to the spring between them. EZ
 }
 
+void Cloth::constrain(int a, int b, int x, int y, float kDash, float deflen) //k is for spring constant, len is defaultLen
+{
+    //update forces for both a,b and x,y based on force for each other.    
+    vec3 dir12 = intermediatePositions[x * nY + y] - intermediatePositions[a * nY + b];
+    float length = glm::length(dir12);
+    float stretch = length - deflen;
+    dir12 = dir12/length; //normalizing.
+
+    if(!isFixed[a*nY + b])
+        intermediatePositions[a*nY + b] += 0.5f * kDash * stretch * (dir12);
+    if(!isFixed[x*nY + y])
+        intermediatePositions[x*nY + y] += -0.5f * kDash * stretch * (dir12);
+    //updates the forces on both the particles due to the spring between them. EZ
+}
+
+void Cloth::updateConstraints(int solverIterations, float constrain_K, float deltaT)
+{
+
+    float kDash = 1 - pow(1-constrain_K, (1/(float)solverIterations));
+    for(int iter = 0; iter < solverIterations; iter++)
+    {
+        for(int i = 0; i < nXvertices; i++)
+        {
+            for(int j = 0; j < nYvertices; j++)
+            {
+                //now we check upon its structural constraints. 
+                 if(i != nXvertices - 1)
+                {
+                    constrain(i, j, i + 1, j, kDash, structlenX);
+                }
+                if(j != nYvertices - 1)
+                {
+                    constrain(i, j, i, j+1, kDash, structlenY); 
+                }
+            }
+        }
+    }
+
+    //after this our constraints are held up. SO now we instead move on to setting up the velocities. 
+    for(int i = 0; i < nXvertices; i++)
+    {
+        for(int j = 0; j < nYvertices; j++)
+        {
+            //now we check upon its structural constraints. 
+            int cur = i*nY + j;
+            if(isFixed[cur]) { continue; }
+            //otherwise we update the velocities and the positions
+
+            velocities[cur] = (intermediatePositions[cur] - positions[cur])/deltaT;
+            positions[cur] = intermediatePositions[cur];
+        }
+    }
+}
+
 
 void Cloth::calculateForces(float g)
 {
@@ -110,22 +166,22 @@ void Cloth::calculateForces(float g)
 
     //first we calculate the structural stretching forces. 
     std::fill(forces.begin(), forces.end(), glm::vec3(0,-g * mass,0)); //first get gravity on this
-
+    float structuralK = (usingConstrains ) ? 0 : structK;
     for(int i = 0; i < nXvertices; i++)
     {
         for(int j = 0; j < nYvertices; j++)
         {
             //lets calculate structural force first. 
-            if(true)
+            if(true) //calculating structural forces ONLY if we are not using constraints to solve this. 
             {
                 //the way we calculate force is that we calculate forces for the right and bottom ones only.
                 if(i != nXvertices - 1)
                 {
-                    updateForce(i, j, i + 1, j, structK, structlenX, structDamp);
+                    updateForce(i, j, i + 1, j, structuralK, structlenX, structDamp);
                 }
                 if(j != nYvertices - 1)
                 {
-                    updateForce(i, j, i, j+1, structK, structlenY, structDamp); 
+                    updateForce(i, j, i, j+1, structuralK, structlenY, structDamp); 
                 }
             } //just the structural forces for now. 
 
@@ -158,7 +214,7 @@ void Cloth::calculateForces(float g)
     }
 }
 
-void Cloth::update(float t, float g)
+void Cloth::update(float dt, float g)
 {
     calculateForces(g);
     //then after we have the forces ready, we calculate the updated positions.
@@ -175,12 +231,18 @@ void Cloth::update(float t, float g)
             {
                 continue; //not updating fixed ones. 
             }
-            velocities[cur] += (t) * forces[cur] / mass;
+            velocities[cur] += (dt) * forces[cur] / mass;
             //after updating the velocities, we can update the positions as well. 
-            positions[cur] += (t) * velocities[cur];
+            if(usingConstrains)
+            intermediatePositions[cur] = positions[cur] + (dt) * velocities[cur];
+            else 
+            positions[cur]  += (dt) * velocities[cur];
         }
     }
 
-    recalculateNormals();
+    //now that we have the intermediate positions, we can iterate and update them based on our constraints. 
+    if(usingConstrains) updateConstraints(25, 1, dt);
+    // else positions = intermediatePositions;
 
+    recalculateNormals();
 }

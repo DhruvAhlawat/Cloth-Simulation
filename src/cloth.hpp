@@ -18,10 +18,11 @@ class Cloth
 	float xWidth, yHeight; 
 	int nXvertices, nYvertices, nY;
 	float structK, shearK, bendK, structDamp, shearDamp, bendDamp;
-	float dt, damping; 
+	float damping; 
 	COL781::OpenGL::AttribBuf vertexBuf, normalBuf;
 
 	vector<vec3> positions; 
+	vector<vec3> intermediatePositions; 
 	vector<vec3> normals; 
 	vector<vec3> forces; 
 	vector<vec3> velocities;
@@ -30,13 +31,13 @@ class Cloth
 	vector<bool> isFixed; 
 
 	float mass; 
-
+	bool usingConstrains = true; 
 	Cloth()
 	{
 
 	} //default constructor does nothing. 
 
-	Cloth(float xWidth, float yHeight, int nXvertices, int nYvertices, float structK = 1000, float shearK = 100, float bendK = 10, float dt = 0.1, float structDamp = 50, float shearDamp = 15, float bendDamp = 0.1, float mass = 1)
+	Cloth(float xWidth, float yHeight, int nXvertices, int nYvertices, float structK = 1000, float shearK = 100, float bendK = 10, float structDamp = 50, float shearDamp = 15, float bendDamp = 0.1, float mass = 1)
 	{
 		this->xWidth = xWidth;
 		this->yHeight = yHeight;
@@ -45,7 +46,6 @@ class Cloth
 		this->structK = structK;
 		this->shearK = shearK;
 		this->bendK = bendK;
-		this->dt = dt;
 		this->structDamp = structDamp;
 		this->shearDamp = shearDamp;
 		this->bendDamp = bendDamp;
@@ -53,6 +53,9 @@ class Cloth
 
 		nY = nYvertices; //for easy access.
 		positions.resize(nXvertices * nYvertices);
+		intermediatePositions.resize(nXvertices * nYvertices);
+		triangles.reserve(2 * (nXvertices - 1) * (nYvertices - 1)); //2 triangles for each quad.
+		edges.reserve(2 * (nXvertices - 1) * (nYvertices - 1)); //2 edges for each quad.
 		normals.resize(nXvertices * nYvertices);
 		forces.resize(nXvertices * nYvertices);
 		velocities.resize(nXvertices * nYvertices);
@@ -73,8 +76,10 @@ class Cloth
 	void calculateForces(float g);
 	void recalculateNormals();
 	void updateForce(int a, int b, int x, int y, float k, float deflen, float dampK); //k is for spring constant, len is defaultLen
-	void update(float t, float g);
-	
+	void constrain(int a, int b, int x, int y, float k, float deflen); //k is for spring constant, len is defaultLen
+	void update(float dt, float g);
+	void updateConstraints(int solverIterations = 10, float constrain_K = 0.8, float deltaT = 0.005);
+
 };
 
 #endif

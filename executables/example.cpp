@@ -25,8 +25,8 @@ CameraControl camCtl;
 Cloth cloth;
 void initializeCloth()
 {
-	int vertices = 21;
-	cloth = Cloth(1, 1, 10, vertices, 4000, 100, 2, 0.005, 10, 15, 0.2, 0.5);
+	int vertices = 51;
+	cloth = Cloth(1, 1, vertices, 31, 6000, 100, 10, 20, 10, 1, 1);
 	object = cloth.setupObject(r);
 }
 
@@ -99,7 +99,7 @@ int main() {
 		last = cur;
 		// updateScene(t);
 		cout << deltaT << endl;
-		update(0.004);
+		update(0.005);
 		camCtl.update();
 		Camera &camera = camCtl.camera;
 
