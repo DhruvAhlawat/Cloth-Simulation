@@ -246,3 +246,96 @@ void Cloth::update(float dt, float g)
 
     recalculateNormals();
 }
+
+
+void generateSphere(int m, int n, Sphere &sphereMesh, vec3 center, float radius) {
+    // Generate vertices
+    for (int j = 1; j < n; j++) { // Exclude poles
+        float phi = M_PI * j / n;
+        for (int i = 0; i < m; i++) {
+            float theta = 2.0f * M_PI * i / m;
+            float z = center.z + radius * cos(theta) * sin(phi);
+            float x = center.x + radius * sin(theta) * sin(phi);
+            float y = center.y + radius * cos(phi);
+            sphereMesh.positions.emplace_back(x, y, z);
+            sphereMesh.normals.emplace_back( glm::normalize(vec3(x - center.x, y - center.y, z - center.z)));
+            //normals are just outward pointing from the center of the sphere. 
+        }
+    }
+
+    // // Add poles
+    // int northPoleIndex = sphereMesh.positions.size();
+    // sphereMesh.positions.emplace_back(0.0f, 0.0f, 1.0f);
+    // int southPoleIndex = sphereMesh.positions.size();
+    // sphereMesh.positions.emplace_back(0.0f, 0.0f, -1.0f);
+
+    int northPoleIndex = sphereMesh.positions.size();
+    sphereMesh.positions.emplace_back(center.x, center.y + radius*1.0f, center.z);
+    int southPoleIndex = sphereMesh.positions.size();
+    sphereMesh.positions.emplace_back(center.x, center.y + radius*-1.0f, center.z);
+
+    vector<vector<int>> faces;
+
+    // Middle quads (excluding poles)
+    for (int j = 0; j < n - 2; j++) { // stacks
+        for (int i = 0; i < m; i++) { // slices
+            int nextI = (i + 1) % m;
+            int currRow = j * m;
+            int nextRow = (j + 1) * m;
+
+            // quad face, anticlockwise
+            sphereMesh.triangles.push_back({
+                currRow + i,
+                nextRow + i,
+                nextRow + nextI
+            });
+            sphereMesh.triangles.push_back({
+                nextRow + nextI,
+                currRow + nextI,
+                currRow + i
+            });
+        }
+    }
+
+    // Top cap (fan around north pole)
+    for (int i = 0; i < m; i++) {
+        int nextI = (i + 1) % m;
+        sphereMesh.triangles.push_back({
+            northPoleIndex,
+            i,
+            nextI
+        });
+    }
+
+    int bottomStart = (n - 2) * m;
+    for (int i = 0; i < m; i++) {
+        int nextI = (i + 1) % m;
+        sphereMesh.triangles.push_back({
+            southPoleIndex,
+            bottomStart + nextI,
+            bottomStart + i
+        });
+    }
+}
+
+
+Sphere::Sphere( int m, int n, float radius, vec3 center, vec3 color)
+{
+    this->radius = radius;
+    this->collisionRadius = radius * 1.02;
+    this->center = center;
+    this->color = color;
+    generateSphere(m, n, *this, center, radius);
+}
+
+COL781::OpenGL::Object Sphere::setupObject(COL781::OpenGL::Rasterizer &r)
+{
+    COL781::OpenGL::Object object = r.createObject();   
+    vertexBuf = r.createVertexAttribs(object, 0, positions.size(), positions.data()); 
+    normalBuf = r.createVertexAttribs(object, 1, normals.size(), normals.data()); 
+    r.createTriangleIndices(object, triangles.size(), triangles.data());
+    r.createEdgeIndices(object, edges.size(), edges.data());
+    std::cout << "done this " << std::endl;
+    return object;
+}
+

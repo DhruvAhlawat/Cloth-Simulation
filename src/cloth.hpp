@@ -9,6 +9,28 @@
 using namespace glm;
 using namespace std;
 
+
+class Sphere
+{
+	public:
+	float radius, collisionRadius;
+	vec3 center;
+	vec3 color;
+
+	COL781::OpenGL::AttribBuf vertexBuf, normalBuf;
+    std::vector<vec3> positions;
+    std::vector<ivec3> triangles;
+    std::vector<vec3> normals;
+    std::vector<ivec2> edges; 
+	Sphere() { } //default constructor does nothing.
+	Sphere( int m, int n, float radius = 1, vec3 center = vec3(0,0,0), vec3 color = vec3(1,0.2,0.5));
+
+	COL781::OpenGL::Object setupObject(COL781::OpenGL::Rasterizer &r);
+
+};
+
+
+
 class Cloth
 {
 	private:

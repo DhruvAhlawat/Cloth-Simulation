@@ -18,17 +18,29 @@ ivec3 triangles[nt];
 ivec2 edges[ne];
 
 GL::Object object;
+GL::Object sphereObject;
+
 GL::AttribBuf vertexBuf, normalBuf;
 
 CameraControl camCtl;
 
 Cloth cloth;
+Sphere sphere;
 void initializeCloth()
 {
 	int vertices = 51;
 	cloth = Cloth(1, 1, vertices, 31, 6000, 100, 10, 20, 10, 1, 1);
 	object = cloth.setupObject(r);
 }
+
+void initializeSphere()
+{
+	sphere = Sphere(20, 20, 0.1, vec3(0, -0.5, 0.5), vec3(1, 0.2, 0.5));
+	sphereObject = sphere.setupObject(r);
+}
+
+
+
 
 void initializeScene() 
 {
@@ -73,7 +85,6 @@ void update(float t)
 {
 	cloth.update(t, gravity);
 	r.updateVertexAttribs(cloth.vertexBuf, cloth.positions.size(), cloth.positions.data());
-
 	//not updating the normals yet.
 }
 
@@ -91,6 +102,12 @@ int main() {
 
 	// initializeScene();
 	initializeCloth();
+	initializeSphere();
+	glm::mat4 identityMat = glm::mat4(1.0);
+
+    glm::vec3 orange(1.0f, 0.6f, 0.2f);
+    glm::vec3 white(1.0f, 1.0f, 1.0f);
+
 	float last = SDL_GetTicks64()*1e-3;
 	while (!r.shouldQuit()) 
 	{
@@ -107,7 +124,7 @@ int main() {
 		r.enableDepthTest();
 		r.useShaderProgram(program);
 
-		r.setUniform(program, "model", glm::mat4(1.0));
+		r.setUniform(program, "model", identityMat);
 		r.setUniform(program, "view", camera.getViewMatrix());
 		r.setUniform(program, "projection", camera.getProjectionMatrix());
 		r.setUniform(program, "lightPos", camera.position);
@@ -115,14 +132,21 @@ int main() {
 		r.setUniform(program, "lightColor", vec3(1.0f, 1.0f, 1.0f));
 
 		r.setupFilledFaces();
-        glm::vec3 orange(1.0f, 0.6f, 0.2f);
-        glm::vec3 white(1.0f, 1.0f, 1.0f);
         r.setUniform(program, "ambientColor", 0.2f*white);
         r.setUniform(program, "extdiffuseColor", 0.9f*orange);
         r.setUniform(program, "intdiffuseColor", 0.4f*orange);
         r.setUniform(program, "specularColor", 0.6f*white);
         r.setUniform(program, "phongExponent", 20.f);
 		r.drawTriangles(object);
+
+		
+		r.setupFilledFaces(); 
+		r.setUniform(program, "ambientColor", 0.2f*white);
+		r.setUniform(program, "extdiffuseColor", 0.9f*sphere.color);
+		r.setUniform(program, "intdiffuseColor", 0.4f*sphere.color);
+		r.setUniform(program, "specularColor", 0.5f*white + 0.2f*sphere.color);
+		r.setUniform(program, "phongExponent", 20.f);
+		r.drawTriangles(sphereObject);
 
 		r.setupWireFrame();
         glm::vec3 black(0.0f, 0.0f, 0.0f);
