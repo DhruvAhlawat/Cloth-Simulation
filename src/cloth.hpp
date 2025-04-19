@@ -97,12 +97,13 @@ class Cloth
 
 	COL781::OpenGL::Object setupObject(COL781::OpenGL::Rasterizer &r);
 	void setupVertices();
-	void calculateForces(float g);
+	void calculateForces(float g, vector<Sphere*> spheres);
+    void handleCollisionForces(int i,int j, vector<Sphere*> spheres);
 	void recalculateNormals();
 	void updateForce(int a, int b, int x, int y, float k, float deflen, float dampK); //k is for spring constant, len is defaultLen
-	void constrain(int a, int b, int x, int y, float k, float deflen); //k is for spring constant, len is defaultLen
-	void update(float dt, float g);
-	void updateConstraints(int solverIterations = 10, float constrain_K = 0.8, float deltaT = 0.005);
+	void constrain(int a, int b, int x, int y, float k, float deflen, vector<Sphere*> spheres); //k is for spring constant, len is defaultLen
+	void update(float dt, float g, vector<Sphere*> spheres);
+	void updateConstraints(int solverIterations = 10, float constrain_K = 0.8, float deltaT = 0.005, vector<Sphere*> spheres = {});
 	// void collisionDetection();
 };
 

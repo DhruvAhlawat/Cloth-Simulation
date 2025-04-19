@@ -18,25 +18,32 @@ ivec3 triangles[nt];
 ivec2 edges[ne];
 
 GL::Object object;
-GL::Object sphereObject;
-
+vector<GL::Object> sphereObjects;
 GL::AttribBuf vertexBuf, normalBuf;
 
 CameraControl camCtl;
 
 Cloth cloth;
 Sphere sphere;
+vector<Sphere*> spheres;
+
 void initializeCloth()
 {
-	int vertices = 51;
+	int vertices = 31;
 	cloth = Cloth(1, 1, vertices, 31, 6000, 100, 10, 20, 10, 1, 1);
 	object = cloth.setupObject(r);
 }
 
 void initializeSphere()
 {
-	sphere = Sphere(20, 20, 0.1, vec3(0, -0.5, 0.5), vec3(1, 0.2, 0.5));
-	sphereObject = sphere.setupObject(r);
+	sphere = Sphere(20, 20, 0.15, vec3(0, -0.8, 0.5), vec3(1, 0.2, 0.5));
+	sphere.velocity = vec3(0.0, 0, 0);
+	spheres.push_back(&sphere);
+	sphereObjects.push_back(sphere.setupObject(r));
+
+	spheres.push_back(new Sphere(20,20, 0.1, vec3(-2, -0.5, 0.5), vec3(0.3, 0.9, 0.75)));
+	spheres[1]->velocity = vec3(0.8,0,0);
+	sphereObjects.push_back(spheres[1]->setupObject(r));
 }
 
 
@@ -81,8 +88,29 @@ void updateScene(float t)
 
 void update(float t)
 {
-	cloth.update(t, gravity);
-	handleCollisions(cloth, sphere, 0.1);
+	//we move each sphere.
+	for(int i = 0; i < spheres.size(); i++)
+	{
+		vec3 offset = spheres[i]->velocity * t;
+		spheres[i]->center += offset;
+		//then we must also update all the vertexpositions.
+		for(int j = 0; j < spheres[i]->positions.size(); j++)
+		{
+			spheres[i]->positions[j] += offset;
+		}
+		r.updateVertexAttribs(spheres[i]->vertexBuf, spheres[i]->positions.size(), spheres[i]->positions.data());
+	}
+	
+	cloth.update(t, gravity, spheres);  //also pass it the spheres that it will collide with.
+	handleCollisions(cloth, sphere, 0.001);
+	// for(int i = 0; i < cloth.positions.size(); i++)
+	// {
+	// 	if(glm::length(cloth.positions[i] - sphere.center) <= sphere.collisionRadius)
+	// 	{
+	// 		cout << "collision detected vert: " << i  << endl;
+	// 	}
+		
+	// }
 	r.updateVertexAttribs(cloth.vertexBuf, cloth.positions.size(), cloth.positions.data());
 	//not updating the normals yet.
 }
@@ -114,8 +142,8 @@ int main() {
         float deltaT = cur - last;
 		last = cur;
 		// updateScene(t);
-		cout << deltaT << endl;
-		update(0.005);
+		// cout << deltaT << endl;
+		update(0.01);
 		camCtl.update();
 		Camera &camera = camCtl.camera;
 
@@ -141,11 +169,14 @@ int main() {
 		
 		r.setupFilledFaces(); 
 		r.setUniform(program, "ambientColor", 0.2f*white);
-		r.setUniform(program, "extdiffuseColor", 0.9f*sphere.color);
-		r.setUniform(program, "intdiffuseColor", 0.4f*sphere.color);
-		r.setUniform(program, "specularColor", 0.7f*white + 0.2f*sphere.color);
 		r.setUniform(program, "phongExponent", 20.f);
-		r.drawTriangles(sphereObject);
+		for(int cursphere = 0; cursphere < spheres.size(); cursphere++)
+		{
+			r.setUniform(program, "extdiffuseColor", 0.9f*spheres[cursphere]->color);
+			r.setUniform(program, "intdiffuseColor", 0.4f*spheres[cursphere]->color);
+			r.setUniform(program, "specularColor", 0.7f*white + 0.2f*spheres[cursphere]->color);
+			r.drawTriangles(sphereObjects[cursphere]);
+		}
 
 		r.setupWireFrame();
         glm::vec3 black(0.0f, 0.0f, 0.0f);

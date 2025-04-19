@@ -1,5 +1,52 @@
 #include "cloth.hpp"
 #include <iostream>
+
+
+void handleCollisions(Cloth &c, Sphere &s, float coeff) //coeff is the coefficient of restitution.
+{
+    //detect collisions between c and s and appropriately change the positions of the cloth vertices. 
+    for(int i = 0; i < c.nYvertices; i++)
+    {
+        for(int j = 0; j < c.nXvertices; j++)
+        {
+            int cur = i*c.nY + j; 
+            vec3 curpos = c.intermediatePositions[cur];
+            vec3 spherepos = s.center;            
+            vec3 diff = curpos - spherepos;
+
+            float dist = glm::length(diff);
+            vec3 normal = diff/dist;
+            if(dist <= s.collisionRadius)
+            {
+                //we have a collision. now we will compute the velocities along the normal direction. 
+                float sphereSpeed = glm::dot(s.velocity, normal); 
+                float clothSpeed = glm::dot(c.velocities[cur], normal);
+                float relativeSpeed = sphereSpeed - clothSpeed;
+                if(relativeSpeed > 0)
+                { //assume no collision here if velocities are going away in the normal direction.
+                    float newRelativeSpeed = relativeSpeed * coeff; //this is the new relative velocity that we should have. 
+                    //therefore the new cloth speed should be.
+                    float newClothSpeed = sphereSpeed + newRelativeSpeed;
+                    c.velocities[cur] += (-clothSpeed + newClothSpeed) * normal; 
+                    //this accounts for hte normal force that is instantaneously applied by the ball on this cloth. 
+                
+                    //we also need to update finally the frictional force that it would feel. 
+                }
+                float offset = 0.001f;
+                c.intermediatePositions[cur] += 1.01f*(s.collisionRadius - dist + offset) * normal; //this is the new position of the cloth vertex.
+                if(glm::length(c.positions[cur] - s.center) <= s.collisionRadius)
+                {
+                    cout << "collision detected vert: " << cur  << endl;
+                }
+                c.forces[cur] += normal * 1.0f; //this is the new force on the cloth vertex.
+                // cout << "updated position of vertex " << cur << endl;
+            }
+        }
+    }
+
+}
+
+
 void Cloth::setupVertices()
 {
     structlenX = xWidth/(nXvertices - 1);
@@ -103,7 +150,7 @@ void Cloth::updateForce(int a, int b, int x, int y, float k, float deflen, float
     //updates the forces on both the particles due to the spring between them. EZ
 }
 
-void Cloth::constrain(int a, int b, int x, int y, float kDash, float deflen) //k is for spring constant, len is defaultLen
+void Cloth::constrain(int a, int b, int x, int y, float kDash, float deflen, vector<Sphere*> spheres) //k is for spring constant, len is defaultLen
 {
     //update forces for both a,b and x,y based on force for each other.    
     vec3 dir12 = intermediatePositions[x * nY + y] - intermediatePositions[a * nY + b];
@@ -118,9 +165,8 @@ void Cloth::constrain(int a, int b, int x, int y, float kDash, float deflen) //k
     //updates the forces on both the particles due to the spring between them. EZ
 }
 
-void Cloth::updateConstraints(int solverIterations, float constrain_K, float deltaT)
+void Cloth::updateConstraints(int solverIterations, float constrain_K, float deltaT, vector<Sphere*> spheres)
 {
-
     float kDash = 1 - pow(1-constrain_K, (1/(float)solverIterations));
     for(int iter = 0; iter < solverIterations; iter++)
     {
@@ -131,13 +177,19 @@ void Cloth::updateConstraints(int solverIterations, float constrain_K, float del
                 //now we check upon its structural constraints. 
                  if(i != nXvertices - 1)
                 {
-                    constrain(i, j, i + 1, j, kDash, structlenX);
+                    constrain(i, j, i + 1, j, kDash, structlenX, spheres);
                 }
                 if(j != nYvertices - 1)
                 {
-                    constrain(i, j, i, j+1, kDash, structlenY); 
+                    constrain(i, j, i, j+1, kDash, structlenY, spheres); 
                 }
             }
+        }
+        // we handle collisions as well as do this, so why is this messing up.
+        //we will also now handle the collisions in this loop itself. 
+        for(int i = 0; i < spheres.size(); i++)
+        {
+            handleCollisions(*this, *spheres[i], 0.01);
         }
     }
 
@@ -157,7 +209,34 @@ void Cloth::updateConstraints(int solverIterations, float constrain_K, float del
     }
 }
 
-void Cloth::calculateForces(float g)
+
+void Cloth::handleCollisionForces(int i, int j, vector<Sphere*> spheres)
+{
+    for(int cursphere = 0; cursphere < spheres.size(); cursphere++)
+    {
+        Sphere *s = spheres[cursphere];
+        int cur = i*nY + j; 
+        vec3 curpos = intermediatePositions[cur];
+        vec3 spherepos = s->center;            
+        vec3 diff = curpos - spherepos;
+
+        float dist = glm::length(diff);
+        vec3 normal = diff/dist;
+
+        if(dist <= s->radius)
+        {
+            //then we need to apply 2 types of forces. 1 is the normal force. 
+
+            //the actual normal force depends upon our forces in this direction. 
+            //we will simply take the component of them along the normal and reduce it to 0.
+            vec3 normalForce = - glm::dot(forces[cur], normal) * normal;
+            forces[cur] += normalForce; //removes the force along this component. 
+        }
+
+    }
+}
+
+void Cloth::calculateForces(float g, vector<Sphere*> spheres)
 {
     //calculates the forces applied on each particle.
 
@@ -209,20 +288,26 @@ void Cloth::calculateForces(float g)
             }
         }
     }
+
+    for(int i = 0; i < nXvertices; i++)
+    {
+        for(int j = 0; j < nYvertices; j++)
+        {
+            handleCollisionForces(i, j, spheres); //now we handle the collision forces at the end. 
+        }
+    }
 }
 
-void Cloth::update(float dt, float g)
+void Cloth::update(float dt, float g, vector<Sphere*> spheres)
 {
-    calculateForces(g);
+    calculateForces(g, spheres);
     //then after we have the forces ready, we calculate the updated positions.
-
     //we need to consider their velocities as well as their positoins. 
     //first we update their velocities, then update their positions based on these new velocities.
     for(int i = 0; i < nXvertices; i++)
     {
         for(int j = 0; j < nYvertices; j++)
         {
-            
             int cur = i*nY + j;
             if(isFixed[cur]) 
             {
@@ -236,11 +321,9 @@ void Cloth::update(float dt, float g)
             positions[cur]  += (dt) * velocities[cur];
         }
     }
-
     //now that we have the intermediate positions, we can iterate and update them based on our constraints. 
-    if(usingConstrains) updateConstraints(25, 1, dt);
+    if(usingConstrains) updateConstraints(25, 1, dt, spheres);
     // else positions = intermediatePositions;
-
     recalculateNormals();
 }
 
@@ -323,6 +406,8 @@ Sphere::Sphere( int m, int n, float radius, vec3 center, vec3 color)
     this->center = center;
     this->color = color;
     generateSphere(m, n, *this, center, radius);
+
+    this->velocity = vec3(0); //initially.
 }
 
 COL781::OpenGL::Object Sphere::setupObject(COL781::OpenGL::Rasterizer &r)
@@ -334,40 +419,4 @@ COL781::OpenGL::Object Sphere::setupObject(COL781::OpenGL::Rasterizer &r)
     r.createEdgeIndices(object, edges.size(), edges.data());
     std::cout << "done this " << std::endl;
     return object;
-}
-
-void handleCollisions(Cloth &c, Sphere &s, float coeff) //coeff is the coefficient of restitution.
-{
-    //detect collisions between c and s and appropriately change the positions of the cloth vertices. 
-    for(int i = 0; i < c.nYvertices; i++)
-    {
-        for(int j = 0; j < c.nXvertices; j++)
-        {
-            int cur = i*c.nY + j; 
-            vec3 curpos = c.intermediatePositions[cur];
-            vec3 spherepos = s.positions[cur];            
-            vec3 diff = curpos - spherepos;
-
-            float dist = glm::length(diff);
-            vec3 normal = diff/dist;
-            if(dist < s.collisionRadius)
-            {
-                //we have a collision. now we will compute the velocities along the normal direction. 
-                float sphereSpeed = glm::dot(s.velocity, normal); 
-                float clothSpeed = glm::dot(c.velocities[cur], normal);
-                float relativeSpeed = sphereSpeed - clothSpeed;
-                if(relativeSpeed < 0) continue; //assume no collision here if velocities are going away in the normal direction.
-                float newRelativeSpeed = relativeSpeed * coeff; //this is the new relative velocity that we should have. 
-                
-                //therefore the new cloth speed should be.
-                float newClothSpeed = sphereSpeed + newRelativeSpeed;
-                c.velocities[cur] += (-clothSpeed + newClothSpeed) * normal; 
-                //this accounts for hte normal force that is instantaneously applied by the ball on this cloth. 
-                
-                c.intermediatePositions[cur] += (s.collisionRadius - dist) * normal; //this is the new position of the cloth vertex.
-            }
-
-        }
-    }
-
 }
