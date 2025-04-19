@@ -36,7 +36,7 @@ class Cloth
 
 	} //default constructor does nothing. 
 
-	Cloth(float xWidth, float yHeight, int nXvertices, int nYvertices, float structK = 1000, float shearK = 100, float bendK = 10, float dt = 0.1, float structDamp = 50, float shearDamp = 15, float bendDamp = 0.1)
+	Cloth(float xWidth, float yHeight, int nXvertices, int nYvertices, float structK = 1000, float shearK = 100, float bendK = 10, float dt = 0.1, float structDamp = 50, float shearDamp = 15, float bendDamp = 0.1, float mass = 1)
 	{
 		this->xWidth = xWidth;
 		this->yHeight = yHeight;
@@ -49,6 +49,7 @@ class Cloth
 		this->structDamp = structDamp;
 		this->shearDamp = shearDamp;
 		this->bendDamp = bendDamp;
+		this->mass = mass;
 
 		nY = nYvertices; //for easy access.
 		positions.resize(nXvertices * nYvertices);
@@ -65,7 +66,6 @@ class Cloth
 		// 	isFixed[i] = true;
 		// }
 		setupVertices();
-		mass = 1;
 	}
 
 	COL781::OpenGL::Object setupObject(COL781::OpenGL::Rasterizer &r);

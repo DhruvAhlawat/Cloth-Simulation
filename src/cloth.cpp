@@ -116,6 +116,7 @@ void Cloth::calculateForces(float g)
         for(int j = 0; j < nYvertices; j++)
         {
             //lets calculate structural force first. 
+            if(true)
             {
                 //the way we calculate force is that we calculate forces for the right and bottom ones only.
                 if(i != nXvertices - 1)
@@ -128,6 +129,8 @@ void Cloth::calculateForces(float g)
                 }
             } //just the structural forces for now. 
 
+            //shear forces.
+            if(true)
             {
                 if(i != nXvertices - 1 && j != nYvertices - 1)
                 {
@@ -136,6 +139,19 @@ void Cloth::calculateForces(float g)
                 if(i != nXvertices - 1 && j != 0)
                 {
                     updateForce(i, j, i + 1, j - 1, shearK, shearlen, shearDamp);
+                }
+            }
+
+            if(true)
+            //bend forces
+            {
+                if(i < nXvertices - 2)
+                {
+                    updateForce(i, j, i + 2, j, bendK, bendlenX, bendDamp);
+                }
+                if(j < nYvertices - 2)
+                {
+                    updateForce(i, j, i, j + 2, bendK, bendlenY, bendDamp);
                 }
             }
         }

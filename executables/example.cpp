@@ -25,7 +25,8 @@ CameraControl camCtl;
 Cloth cloth;
 void initializeCloth()
 {
-	cloth = Cloth(1, 1, 5, 5, 2000, 100, 10, 0.005, 50);
+	int vertices = 21;
+	cloth = Cloth(1, 1, 10, vertices, 4000, 100, 2, 0.005, 10, 15, 0.2, 0.5);
 	object = cloth.setupObject(r);
 }
 
