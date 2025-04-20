@@ -24,7 +24,6 @@ GL::AttribBuf vertexBuf, normalBuf;
 CameraControl camCtl;
 
 Cloth cloth;
-Sphere sphere;
 vector<Sphere*> spheres;
 
 void initializeCloth()
@@ -36,10 +35,9 @@ void initializeCloth()
 
 void initializeSphere()
 {
-	sphere = Sphere(20, 20, 0.15, vec3(0, -0.8, 0.5), vec3(1, 0.2, 0.5));
-	sphere.velocity = vec3(0.0, 0, 0);
-	spheres.push_back(&sphere);
-	sphereObjects.push_back(sphere.setupObject(r));
+	spheres.push_back(new Sphere(20, 20, 0.15, vec3(0, -0.8, 0.5), vec3(1, 0.2, 0.5)));
+	spheres[0]->velocity = vec3(0.0, 0, 0);
+	sphereObjects.push_back(spheres[0]->setupObject(r));
 
 	spheres.push_back(new Sphere(20,20, 0.1, vec3(-2, -0.5, 0.5), vec3(0.3, 0.9, 0.75)));
 	spheres[1]->velocity = vec3(0.8,0,0);
@@ -47,42 +45,30 @@ void initializeSphere()
 }
 
 
-void initializeScene() 
+
+void initializeScene1() 
 {
-	object = r.createObject();
-	vertices[0] = vec3(0, 0, 1);
-	vertices[1] = vec3(1, 0, 1);
-	vertices[2] = vec3(1, 0, 0);
-	vertices[3] = vec3(0, 0, 0);
-	vertexBuf = r.createVertexAttribs(object, 0, nv, vertices);
-	normals[0] = vec3(0, 0, 1);
-	normals[1] = vec3(0, 0, 1);
-	normals[2] = vec3(0, 0, 1);
-	normals[3] = vec3(0, 0, 1);
-	normalBuf = r.createVertexAttribs(object, 1, nv, normals);
-	triangles[0] = ivec3(0, 1, 2);
-	triangles[1] = ivec3(0, 2, 3);
-	r.createTriangleIndices(object, nt, triangles);
-    edges[0] = ivec2(0, 1);
-    edges[1] = ivec2(1, 2);
-    edges[2] = ivec2(2, 3);
-    edges[3] = ivec2(3, 0);
-	r.createEdgeIndices(object, ne, edges);
+	initializeCloth();
+	initializeSphere();
+}
+
+void initializeDrapeScene()
+{
+	int vertices = 31;
+	cloth = Cloth(1, 1, vertices, 31, 6000, 100, 10, 20, 10, 1, 1);
+	object = cloth.setupObject(r);
+	
+	//unfixing the cloth.
+	cloth.isFixed[0] = false; cloth.isFixed[cloth.nYvertices - 1] = false;	
+
+	spheres.push_back(new Sphere(20,20, 0.1, vec3(0.3, -0.5, 0.5), vec3(0.3, 0.9, 0.75)));
+	spheres[0]->velocity = vec3(0.8,0,0);
+	sphereObjects.push_back(spheres[0]->setupObject(r));
 }
 
 void updateScene(float t) 
 {
-	float freq = 2, amp = 1;
-	float phase0 = 0, phase1 = 0.5;
-	float theta0 = amp*cos(freq*t + phase0), theta1 = amp*cos(freq*t + phase1);
-	vertices[0] = vec3(0, -cos(theta0), sin(theta0));
-	vertices[1] = vec3(1, -cos(theta1), sin(theta1));
-	r.updateVertexAttribs(vertexBuf, nv, vertices);
-	normals[0] = glm::normalize(glm::cross(vertices[1]-vertices[0], vertices[3]-vertices[0]));
-	normals[1] = glm::normalize(glm::cross(vertices[2]-vertices[1], vertices[0]-vertices[1]));
-	normals[2] = glm::normalize(glm::cross(vertices[3]-vertices[2], vertices[1]-vertices[2]));
-	normals[3] = glm::normalize(glm::cross(vertices[0]-vertices[3], vertices[2]-vertices[3]));
-	r.updateVertexAttribs(normalBuf, nv, normals);
+
 }
 
 
@@ -102,7 +88,7 @@ void update(float t)
 	}
 	
 	cloth.update(t, gravity, spheres);  //also pass it the spheres that it will collide with.
-	handleCollisions(cloth, sphere, 0.001);
+	// handleCollisions(cloth, sphere, 0.001);
 	// for(int i = 0; i < cloth.positions.size(); i++)
 	// {
 	// 	if(glm::length(cloth.positions[i] - sphere.center) <= sphere.collisionRadius)
@@ -128,8 +114,8 @@ int main() {
 	);
 
 	// initializeScene();
-	initializeCloth();
-	initializeSphere();
+	initializeScene1();
+	// initializeDrapeScene();
 	glm::mat4 identityMat = glm::mat4(1.0);
 
     glm::vec3 orange(1.0f, 0.6f, 0.2f);
@@ -143,7 +129,7 @@ int main() {
 		last = cur;
 		// updateScene(t);
 		// cout << deltaT << endl;
-		update(0.01);
+		update(0.005);
 		camCtl.update();
 		Camera &camera = camCtl.camera;
 

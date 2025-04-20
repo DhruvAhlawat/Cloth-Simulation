@@ -34,10 +34,10 @@ void handleCollisions(Cloth &c, Sphere &s, float coeff) //coeff is the coefficie
                 }
                 float offset = 0.001f;
                 c.intermediatePositions[cur] += 1.01f*(s.collisionRadius - dist + offset) * normal; //this is the new position of the cloth vertex.
-                if(glm::length(c.positions[cur] - s.center) <= s.collisionRadius)
-                {
-                    cout << "collision detected vert: " << cur  << endl;
-                }
+                // if(glm::length(c.positions[cur] - s.center) <= s.collisionRadius)
+                // {
+                //     cout << "collision detected vert: " << cur  << endl;
+                // }
                 c.forces[cur] += normal * 1.0f; //this is the new force on the cloth vertex.
                 // cout << "updated position of vertex " << cur << endl;
             }
@@ -402,7 +402,7 @@ void generateSphere(int m, int n, Sphere &sphereMesh, vec3 center, float radius)
 Sphere::Sphere( int m, int n, float radius, vec3 center, vec3 color)
 {
     this->radius = radius;
-    this->collisionRadius = radius * 1.02;
+    this->collisionRadius = radius * 1.05;
     this->center = center;
     this->color = color;
     generateSphere(m, n, *this, center, radius);
