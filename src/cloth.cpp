@@ -1,6 +1,65 @@
 #include "cloth.hpp"
 #include <iostream>
 
+std::vector<glm::vec3> createPlaneVertices(const glm::vec3& normal, float offset, float sideLength) {
+    // Ensure the normal is normalized
+    glm::vec3 unitNormal = glm::normalize(normal);
+    
+    // Calculate a point on the plane
+    // For plane equation n·x = d, a point on the plane is d*n/|n|^2
+    // Since we've normalized the normal, this simplifies to d*n
+    glm::vec3 pointOnPlane = offset * unitNormal;
+    
+    // Find a vector perpendicular to the normal
+    // We need any vector not parallel to normal to find a perpendicular vector
+    glm::vec3 temp = (std::abs(unitNormal.x) < 0.9f) ? 
+        glm::vec3(1.0f, 0.0f, 0.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
+    
+    // First perpendicular direction (will be one side of our square)
+    glm::vec3 side1 = glm::normalize(glm::cross(unitNormal, temp));
+    
+    // Second perpendicular direction (the other side of our square)
+    glm::vec3 side2 = glm::cross(unitNormal, side1);
+    
+    // Ensure side2 is normalized
+    side2 = glm::normalize(side2);
+    
+    // Scale the sides to the desired length
+    side1 *= sideLength / 2.0f;
+    side2 *= sideLength / 2.0f;
+    
+    // Calculate the four vertices of the plane, centered at pointOnPlane
+    std::vector<glm::vec3> vertices;
+    vertices.push_back(pointOnPlane - side1 - side2);  // Bottom-left
+    vertices.push_back(pointOnPlane + side1 - side2);  // Bottom-right
+    vertices.push_back(pointOnPlane + side1 + side2);  // Top-right
+    vertices.push_back(pointOnPlane - side1 + side2);  // Top-left
+    
+    return vertices;
+}
+COL781::OpenGL::Object Plane::setupObject(COL781::OpenGL::Rasterizer &r)
+{
+    COL781::OpenGL::Object object = r.createObject();   
+    vertexBuf = r.createVertexAttribs(object, 0, positions.size(), positions.data()); 
+    normalBuf = r.createVertexAttribs(object, 1, normals.size(), normals.data()); 
+    r.createTriangleIndices(object, triangles.size(), triangles.data());
+    r.createEdgeIndices(object, edges.size(), edges.data());
+    return object;
+}
+
+Plane::Plane(float offset, vec3 normal, vec3 color, float coeff_friction , float coeff_restitution)
+{
+    this->offset = offset;
+    this->normal = normal;
+    this->color = color;
+    this->coeff_friction = coeff_friction;
+    this->coeff_restitution = coeff_restitution;
+
+    positions = createPlaneVertices(normal, offset, 1.0f); // Create a square plane with side length 1.0
+    normals = std::vector<vec3>(4, normal); // All normals are the same for a flat plane
+    triangles = {ivec3(0, 1, 2), ivec3(0, 2, 3)}; // Two triangles to form the square
+    edges = {ivec2(0, 1), ivec2(1, 2), ivec2(2, 3), ivec2(3, 0)}; // Edges of the square
+}
 
 void handleCollisions(Cloth &c, Sphere &s, float coeff) //coeff is the coefficient of restitution.
 {
@@ -19,9 +78,9 @@ void handleCollisions(Cloth &c, Sphere &s, float coeff) //coeff is the coefficie
             if(dist <= s.collisionRadius)
             {
                 //we have a collision. now we will compute the velocities along the normal direction. 
-                float sphereSpeed = glm::dot(s.velocity, normal); 
+                float sphereSpeed = glm::dot(s.velocity, normal);  //we dont consider the angular velocity here as that is perpendicular to the normal.
                 float clothSpeed = glm::dot(c.velocities[cur], normal);
-                float relativeSpeed = sphereSpeed - clothSpeed;
+                float relativeSpeed = sphereSpeed - clothSpeed;  //the relative speed along the normal.  
                 if(relativeSpeed > 0)
                 { //assume no collision here if velocities are going away in the normal direction.
                     float newRelativeSpeed = relativeSpeed * coeff; //this is the new relative velocity that we should have. 
@@ -33,19 +92,38 @@ void handleCollisions(Cloth &c, Sphere &s, float coeff) //coeff is the coefficie
                     //we also need to update finally the frictional force that it would feel. 
                 }
                 float offset = 0.001f;
-                c.intermediatePositions[cur] += 1.01f*(s.collisionRadius - dist + offset) * normal; //this is the new position of the cloth vertex.
-                // if(glm::length(c.positions[cur] - s.center) <= s.collisionRadius)
-                // {
-                //     cout << "collision detected vert: " << cur  << endl;
-                // }
-                c.forces[cur] += normal * 1.0f; //this is the new force on the cloth vertex.
-                // cout << "updated position of vertex " << cur << endl;
+                c.intermediatePositions[cur] += (s.collisionRadius - dist + offset) * normal; //this is the new position of the cloth vertex.
             }
         }
     }
 
 }
 
+void handlePlaneCollisions(Cloth &c, Plane &p, float coeff)
+{
+     //detect collisions between c and s and appropriately change the positions of the cloth vertices. 
+    for(int i = 0; i < c.nYvertices; i++)
+    {
+        for(int j = 0; j < c.nXvertices; j++)
+        {
+            int cur = i * c.nY + j;
+            vec3 curpos = c.intermediatePositions[cur];
+            
+            float prevPlanePos = glm::dot(p.normal, c.positions[cur]); //positions is the unupdated position so it is previous timestep position.
+            float planePos = glm::dot(p.normal, curpos);
+            
+            if(planePos <= p.offset) //then we assume it is in contact. it shoudl always be above p.offset since it is an infinite plane not a finite one.
+            {
+                //we have a collision. now we will compute the velocities along the normal direction. 
+                float clothSpeed = glm::dot(c.velocities[cur], p.normal);
+                float newClothSpeed = -clothSpeed * coeff; //this is the new relative velocity that we should have. 
+                c.velocities[cur] += (-clothSpeed + newClothSpeed) * p.normal; 
+                //this accounts for hte normal force that is instantaneously applied by the ball on this cloth. 
+                c.intermediatePositions[cur] += (p.offset - planePos) * p.normal; //this is the new position of the cloth vertex.
+            }
+        }
+    }
+}
 
 void Cloth::setupVertices()
 {
@@ -99,7 +177,7 @@ COL781::OpenGL::Object Cloth::setupObject(COL781::OpenGL::Rasterizer &r)
     normalBuf = r.createVertexAttribs(object, 1, normals.size(), normals.data()); 
     r.createTriangleIndices(object, triangles.size(), triangles.data());
     r.createEdgeIndices(object, edges.size(), edges.data());
-    std::cout << "done this " << std::endl;
+    // std::cout << "done this " << std::endl;
     return object;
 }
 
@@ -165,7 +243,8 @@ void Cloth::constrain(int a, int b, int x, int y, float kDash, float deflen, vec
     //updates the forces on both the particles due to the spring between them. EZ
 }
 
-void Cloth::updateConstraints(int solverIterations, float constrain_K, float deltaT, vector<Sphere*> spheres)
+// void Cloth::updateConstraints(int solverIterations, float constrain_K, float deltaT, vector<Sphere*> spheres, Plane &p)
+void Cloth::updateConstraints(vector<Sphere*> spheres,Plane &p, int solverIterations, float constrain_K, float deltaT)
 {
     float kDash = 1 - pow(1-constrain_K, (1/(float)solverIterations));
     for(int iter = 0; iter < solverIterations; iter++)
@@ -185,11 +264,12 @@ void Cloth::updateConstraints(int solverIterations, float constrain_K, float del
                 }
             }
         }
-        // we handle collisions as well as do this, so why is this messing up.
+        // we handle collisions as well as do this
         //we will also now handle the collisions in this loop itself. 
         for(int i = 0; i < spheres.size(); i++)
         {
-            handleCollisions(*this, *spheres[i], 0.01);
+            handleCollisions(*this, *spheres[i], spheres[i]->coeff_restitution);
+        
         }
     }
 
@@ -209,34 +289,76 @@ void Cloth::updateConstraints(int solverIterations, float constrain_K, float del
     }
 }
 
-
-void Cloth::handleCollisionForces(int i, int j, vector<Sphere*> spheres)
+void Cloth::handleCollisionForces(int i, int j, vector<Sphere*> spheres, Plane &p)
 {
+    int cur = i*nY + j; 
+    vec3 curpos = intermediatePositions[cur];
     for(int cursphere = 0; cursphere < spheres.size(); cursphere++)
     {
         Sphere *s = spheres[cursphere];
-        int cur = i*nY + j; 
-        vec3 curpos = intermediatePositions[cur];
         vec3 spherepos = s->center;            
         vec3 diff = curpos - spherepos;
 
         float dist = glm::length(diff);
         vec3 normal = diff/dist;
 
-        if(dist <= s->radius)
+        if(dist <= s->collisionRadius + 0.001)
         {
             //then we need to apply 2 types of forces. 1 is the normal force. 
-
             //the actual normal force depends upon our forces in this direction. 
             //we will simply take the component of them along the normal and reduce it to 0.
             vec3 normalForce = - glm::dot(forces[cur], normal) * normal;
             forces[cur] += normalForce; //removes the force along this component. 
+            
+            //now if there is relative velocity, then we also need to apply frictional force. 
+
+            //we also consider the angular velocity of the sphere. 
+            vec3 relvel = s->velocity + glm::cross(s->angularVelocity, s->radius * normal) - velocities[cur];
+            relvel = relvel - glm::dot(relvel, normal) * normal; //the tangential component of the relative velocity
+            if(relvel != vec3(0))
+            {
+                vec3 relvel_dir = glm::normalize(relvel);
+                // cout << "relvel is : " << relvel.x << " , " << relvel.y << " , " << relvel.z << endl; 
+                // //Frictional force is
+                // cout << "frictional coeffecient is " << s->coeff_friction << endl;
+                vec3 frictional_force = s->coeff_friction * relvel_dir * glm::length(normalForce); 
+                // cout << "frictional force is hence : " << frictional_force.x << " , " << frictional_force.y << " , " << frictional_force.z << endl; 
+                forces[cur] += frictional_force;
+            }
+            //else    
+            //relative velocity tangential to normal is 0 so we do not apply any frictional force.
         }
 
     }
+
+    //now we check collisions with the plane. 
+    float planepos = glm::dot(p.normal, curpos); 
+    float prevplanepos = glm::dot(p.normal, positions[cur]); //positions is the unupdated position so it is previous timestep position.
+    if(-p.gap <= planepos && planepos < p.gap)  //then we consider it a collision with the plane.
+    {
+        //if we were previously above it and in this frame we are down, then we reset it to 0.
+ //we will simply take the component of them along the normal and reduce it to 0.
+        
+        float forceAlongNormal = glm::dot(forces[cur], p.normal);
+        vec3 normalForce = vec3(0);
+        if(forceAlongNormal < 0) //if the force is inwards on the plane.
+            normalForce = - glm::dot(forces[cur], p.normal) * p.normal;
+        forces[cur] += normalForce; //removes the force along this component. 
+
+        vec3 relvel = -velocities[cur]; //assuming plane is stationary.
+        relvel = relvel - glm::dot(relvel, p.normal) * p.normal; //the tangential component of the relative velocity
+        if(relvel != vec3(0))
+        {
+            vec3 relvel_dir = glm::normalize(relvel);
+            vec3 frictional_force = p.coeff_friction * relvel_dir * glm::length(normalForce); 
+            // cout << "frictional force is hence : " << frictional_force.x << " , " << frictional_force.y << " , " << frictional_force.z << endl; 
+            forces[cur] += frictional_force;
+        }
+    }
+
 }
 
-void Cloth::calculateForces(float g, vector<Sphere*> spheres)
+void Cloth::calculateForces(float g, vector<Sphere*> spheres, Plane &p)
 {
     //calculates the forces applied on each particle.
 
@@ -248,7 +370,7 @@ void Cloth::calculateForces(float g, vector<Sphere*> spheres)
         for(int j = 0; j < nYvertices; j++)
         {
             //lets calculate structural force first. 
-            if(true) //calculating structural forces ONLY if we are not using constraints to solve this. 
+            if(true) //calculating structural forces ONLY if we are not using constraints to solve this as k = 0 when constraints are used. 
             {
                 //the way we calculate force is that we calculate forces for the right and bottom ones only.
                 if(i != nXvertices - 1)
@@ -293,14 +415,14 @@ void Cloth::calculateForces(float g, vector<Sphere*> spheres)
     {
         for(int j = 0; j < nYvertices; j++)
         {
-            handleCollisionForces(i, j, spheres); //now we handle the collision forces at the end. 
+            handleCollisionForces(i, j, spheres, p); //now we handle the collision forces at the end. 
         }
     }
 }
 
-void Cloth::update(float dt, float g, vector<Sphere*> spheres)
+void Cloth::update(float dt, float g, vector<Sphere*> spheres, Plane &p)
 {
-    calculateForces(g, spheres);
+    calculateForces(g, spheres, p);
     //then after we have the forces ready, we calculate the updated positions.
     //we need to consider their velocities as well as their positoins. 
     //first we update their velocities, then update their positions based on these new velocities.
@@ -322,11 +444,10 @@ void Cloth::update(float dt, float g, vector<Sphere*> spheres)
         }
     }
     //now that we have the intermediate positions, we can iterate and update them based on our constraints. 
-    if(usingConstrains) updateConstraints(25, 1, dt, spheres);
+    if(usingConstrains) updateConstraints(spheres, p, 25, 1, dt);
     // else positions = intermediatePositions;
     recalculateNormals();
 }
-
 
 void generateSphere(int m, int n, Sphere &sphereMesh, vec3 center, float radius) {
     // Generate vertices
@@ -342,7 +463,7 @@ void generateSphere(int m, int n, Sphere &sphereMesh, vec3 center, float radius)
             //normals are just outward pointing from the center of the sphere. 
         }
     }
-
+    
     // // Add poles
     // int northPoleIndex = sphereMesh.positions.size();
     // sphereMesh.positions.emplace_back(0.0f, 0.0f, 1.0f);
@@ -355,7 +476,7 @@ void generateSphere(int m, int n, Sphere &sphereMesh, vec3 center, float radius)
     sphereMesh.positions.emplace_back(center.x, center.y + radius*-1.0f, center.z);
 
     vector<vector<int>> faces;
-
+    std::set<pair<int,int>> edgeSet;
     // Middle quads (excluding poles)
     for (int j = 0; j < n - 2; j++) { // stacks
         for (int i = 0; i < m; i++) { // slices
@@ -374,8 +495,14 @@ void generateSphere(int m, int n, Sphere &sphereMesh, vec3 center, float radius)
                 currRow + nextI,
                 currRow + i
             });
+
+            edgeSet.insert(make_pair(std::min(currRow + i,nextRow + i), std::max(currRow+i, nextRow + i)));
+            edgeSet.insert(make_pair(std::min(nextRow + i,nextRow + nextI), std::max(nextRow+i, nextRow + nextI)));
+            edgeSet.insert(make_pair(std::min(currRow + nextI,nextRow + nextI), std::max(currRow+nextI, nextRow + nextI)));
+            edgeSet.insert(make_pair(std::min(currRow + nextI,currRow+ i), std::max(currRow+nextI, currRow + i)));
         }
     }
+
 
     // Top cap (fan around north pole)
     for (int i = 0; i < m; i++) {
@@ -385,6 +512,9 @@ void generateSphere(int m, int n, Sphere &sphereMesh, vec3 center, float radius)
             i,
             nextI
         });
+        edgeSet.insert({std::min(northPoleIndex, i), std::max(northPoleIndex,i)});
+        edgeSet.insert({std::min(northPoleIndex, nextI), std::max(northPoleIndex,nextI)});
+        edgeSet.insert({std::min(i, nextI), std::max(i,nextI)});
     }
 
     int bottomStart = (n - 2) * m;
@@ -395,18 +525,27 @@ void generateSphere(int m, int n, Sphere &sphereMesh, vec3 center, float radius)
             bottomStart + nextI,
             bottomStart + i
         });
+        edgeSet.insert({std::min(southPoleIndex, bottomStart + i), std::max(southPoleIndex,bottomStart + i)});
+        edgeSet.insert({std::min(southPoleIndex, bottomStart + nextI), std::max(southPoleIndex,bottomStart + nextI)});
+        edgeSet.insert({std::min(bottomStart + i, bottomStart + nextI), std::max(bottomStart + i,bottomStart + nextI)});
     }
+
+    for(auto x : edgeSet)
+    {
+        sphereMesh.edges.push_back(ivec2(x.first, x.second));
+    }
+
 }
 
-
-Sphere::Sphere( int m, int n, float radius, vec3 center, vec3 color)
+Sphere::Sphere( int m, int n, float radius, vec3 center, vec3 color, float coeff_restitution, float coeff_friction)
 {
     this->radius = radius;
-    this->collisionRadius = radius * 1.05;
+    this->collisionRadius = radius + std::min(0.01, radius * 0.02);
     this->center = center;
     this->color = color;
+    this->coeff_friction = coeff_friction;
+    this->coeff_restitution = coeff_restitution;
     generateSphere(m, n, *this, center, radius);
-
     this->velocity = vec3(0); //initially.
 }
 
@@ -417,6 +556,30 @@ COL781::OpenGL::Object Sphere::setupObject(COL781::OpenGL::Rasterizer &r)
     normalBuf = r.createVertexAttribs(object, 1, normals.size(), normals.data()); 
     r.createTriangleIndices(object, triangles.size(), triangles.data());
     r.createEdgeIndices(object, edges.size(), edges.data());
-    std::cout << "done this " << std::endl;
+    // std::cout << "done this " << std::endl;
     return object;
+}
+
+void Sphere::update(float dt, bool shadeSphereEdges)
+{
+
+	vec3 offset = this->velocity * dt;
+    
+	//then we must also update all the vertexpositions.
+	for(int j = 0; j < this->positions.size(); j++)
+	{
+        if(shadeSphereEdges)
+        {
+            vec3 radiusVector = positions[j] - center;
+            vec3 angularOffset = glm::cross(angularVelocity, radiusVector) * dt; 
+            this->positions[j] += angularOffset;
+            this->positions[j] = center + glm::normalize(positions[j] - center) * radius;
+            normals[j] = glm::normalize(positions[j] - center);
+        }
+        this->positions[j] += offset; //linear velocity offset
+	}
+    this->center += offset; //update the center later by the linear velocity offset. 
+    
+    //this updates all vertex positions.
+
 }

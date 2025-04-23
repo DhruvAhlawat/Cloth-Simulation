@@ -17,33 +17,47 @@ vec3 normals[nv];
 ivec3 triangles[nt];
 ivec2 edges[ne];
 
-GL::Object object;
+GL::Object object, planeObject;
 vector<GL::Object> sphereObjects;
 GL::AttribBuf vertexBuf, normalBuf;
 
 CameraControl camCtl;
 
 Cloth cloth;
+Plane p;
 vector<Sphere*> spheres;
+
+bool shadeSphereEdges = true; //turn off for faster computation.
+
+
+void initializePlane()
+{
+	p = Plane(-2, vec3(0,1,0), vec3(0.5, 0.5, 0.5), 0.1, 0.02);
+	planeObject = p.setupObject(r);
+}
 
 void initializeCloth()
 {
+	//Cannot set different resolution for x and y. Must keep both the same. 
+	//probs some positional calculation requirement missing. 
+
 	int vertices = 31;
-	cloth = Cloth(1, 1, vertices, 31, 6000, 100, 10, 20, 10, 1, 1);
+	// cloth = Cloth(1, 1, vertices, 31, 6000, 100, 10, 20, 10, 1, 1);
+	cloth = Cloth(1, 1, vertices, vertices, 6000, 1000, 100, 80, 30, 10, 1);
 	object = cloth.setupObject(r);
 }
 
 void initializeSphere()
 {
+	//spheres.push_back(new Sphere(20, 20, 0.15, vec3(0, -0.8, 0.5), vec3(1, 0.2, 0.5)));
 	spheres.push_back(new Sphere(20, 20, 0.15, vec3(0, -0.8, 0.5), vec3(1, 0.2, 0.5)));
 	spheres[0]->velocity = vec3(0.0, 0, 0);
 	sphereObjects.push_back(spheres[0]->setupObject(r));
 
-	spheres.push_back(new Sphere(20,20, 0.1, vec3(-2, -0.5, 0.5), vec3(0.3, 0.9, 0.75)));
-	spheres[1]->velocity = vec3(0.8,0,0);
+	spheres.push_back(new Sphere(20,20, 0.1, vec3(-2, -0.5, 0.5), vec3(0.3, 0.9, 0.75), 0.9, 0.5));
+	spheres[1]->velocity = vec3(2,0,0);
 	sphereObjects.push_back(spheres[1]->setupObject(r));
 }
-
 
 
 void initializeScene1() 
@@ -61,44 +75,32 @@ void initializeDrapeScene()
 	//unfixing the cloth.
 	cloth.isFixed[0] = false; cloth.isFixed[cloth.nYvertices - 1] = false;	
 
-	spheres.push_back(new Sphere(20,20, 0.1, vec3(0.3, -0.5, 0.5), vec3(0.3, 0.9, 0.75)));
-	spheres[0]->velocity = vec3(0.8,0,0);
+	spheres.push_back(new Sphere(20,20, 0.3, vec3(0.5, -0.5, 0.5), vec3(0.3, 0.9, 0.75), 0.01, 0.9));
+	// spheres[0]->velocity = vec3(0.8,0,0);
+	spheres[0]->angularVelocity = vec3(0,10,0);
 	sphereObjects.push_back(spheres[0]->setupObject(r));
 }
 
-void updateScene(float t) 
-{
-
-}
-
-
-void update(float t)
+void update(float dt)
 {
 	//we move each sphere.
 	for(int i = 0; i < spheres.size(); i++)
 	{
-		vec3 offset = spheres[i]->velocity * t;
-		spheres[i]->center += offset;
-		//then we must also update all the vertexpositions.
-		for(int j = 0; j < spheres[i]->positions.size(); j++)
-		{
-			spheres[i]->positions[j] += offset;
-		}
+		spheres[i]->update(dt, shadeSphereEdges);
 		r.updateVertexAttribs(spheres[i]->vertexBuf, spheres[i]->positions.size(), spheres[i]->positions.data());
+		if(shadeSphereEdges)
+			r.updateVertexAttribs(spheres[i]->normalBuf, spheres[i]->normals.size(), spheres[i]->normals.data());
 	}
-	
-	cloth.update(t, gravity, spheres);  //also pass it the spheres that it will collide with.
-	// handleCollisions(cloth, sphere, 0.001);
-	// for(int i = 0; i < cloth.positions.size(); i++)
-	// {
-	// 	if(glm::length(cloth.positions[i] - sphere.center) <= sphere.collisionRadius)
-	// 	{
-	// 		cout << "collision detected vert: " << i  << endl;
-	// 	}
-		
-	// }
+	r.updateVertexAttribs(p.vertexBuf, p.positions.size(), p.positions.data());
+	cloth.update(dt, gravity, spheres, p);  //also pass it the spheres that it will collide with.
+
 	r.updateVertexAttribs(cloth.vertexBuf, cloth.positions.size(), cloth.positions.data());
-	//not updating the normals yet.
+	r.updateVertexAttribs(cloth.normalBuf, cloth.normals.size(), cloth.normals.data());
+}
+
+void print_fps(float deltaT)
+{
+	cout << "\r " << round((1/deltaT)*100)/100 << "     \r";
 }
 
 int main() {
@@ -114,8 +116,9 @@ int main() {
 	);
 
 	// initializeScene();
-	initializeScene1();
-	// initializeDrapeScene();
+	// initializeScene1();
+	initializePlane();
+	initializeDrapeScene();
 	glm::mat4 identityMat = glm::mat4(1.0);
 
     glm::vec3 orange(1.0f, 0.6f, 0.2f);
@@ -129,6 +132,7 @@ int main() {
 		last = cur;
 		// updateScene(t);
 		// cout << deltaT << endl;
+		print_fps(deltaT);
 		update(0.005);
 		camCtl.update();
 		Camera &camera = camCtl.camera;
@@ -152,16 +156,34 @@ int main() {
         r.setUniform(program, "phongExponent", 20.f);
 		r.drawTriangles(object);
 
+		r.setupFilledFaces();
+        r.setUniform(program, "ambientColor", 0.2f*white);
+        r.setUniform(program, "extdiffuseColor", 0.9f*orange);
+        r.setUniform(program, "intdiffuseColor", 0.4f*orange);
+        r.setUniform(program, "specularColor", 0.6f*white);
+        r.setUniform(program, "phongExponent", 20.f);
+		r.drawTriangles(planeObject);
+
 		
-		r.setupFilledFaces(); 
-		r.setUniform(program, "ambientColor", 0.2f*white);
-		r.setUniform(program, "phongExponent", 20.f);
 		for(int cursphere = 0; cursphere < spheres.size(); cursphere++)
 		{
+			r.setupFilledFaces(); 
+			r.setUniform(program, "ambientColor", 0.2f*white);
+			r.setUniform(program, "phongExponent", 20.f);
 			r.setUniform(program, "extdiffuseColor", 0.9f*spheres[cursphere]->color);
 			r.setUniform(program, "intdiffuseColor", 0.4f*spheres[cursphere]->color);
 			r.setUniform(program, "specularColor", 0.7f*white + 0.2f*spheres[cursphere]->color);
 			r.drawTriangles(sphereObjects[cursphere]);
+
+			r.setupWireFrame();
+
+        	glm::vec3 black(0.0f, 0.0f, 0.0f);
+        	r.setUniform(program, "ambientColor", black);
+        	r.setUniform(program, "extdiffuseColor", black);
+        	r.setUniform(program, "intdiffuseColor", black);
+        	r.setUniform(program, "specularColor", black);
+        	r.setUniform(program, "phongExponent", 0.f);
+			r.drawEdges(sphereObjects[cursphere]);
 		}
 
 		r.setupWireFrame();
