@@ -27,12 +27,12 @@ Cloth cloth;
 Plane p;
 vector<Sphere*> spheres;
 
-bool shadeSphereEdges = true; //turn off for faster computation.
+bool shadeSphereEdges = false; //turn off for faster computation.
 
 
 void initializePlane()
 {
-	p = Plane(-2, vec3(0,1,0), vec3(0.5, 0.5, 0.5), 0.1, 0.02);
+	p = Plane(-1.2, vec3(0,1,0), 10, vec3(0.3, 0.9, 0.3), 0.1, 0.9);
 	planeObject = p.setupObject(r);
 }
 
@@ -75,9 +75,9 @@ void initializeDrapeScene()
 	//unfixing the cloth.
 	cloth.isFixed[0] = false; cloth.isFixed[cloth.nYvertices - 1] = false;	
 
-	spheres.push_back(new Sphere(20,20, 0.3, vec3(0.5, -0.5, 0.5), vec3(0.3, 0.9, 0.75), 0.01, 0.9));
+	spheres.push_back(new Sphere(20,20, 0.3, vec3(0.5, -0.5, 0.5), vec3(0.3, 0.9, 0.75), 0.01, 1.9));
 	// spheres[0]->velocity = vec3(0.8,0,0);
-	spheres[0]->angularVelocity = vec3(0,10,0);
+	spheres[0]->angularVelocity = vec3(0,-12,0);
 	sphereObjects.push_back(spheres[0]->setupObject(r));
 }
 
@@ -158,8 +158,8 @@ int main() {
 
 		r.setupFilledFaces();
         r.setUniform(program, "ambientColor", 0.2f*white);
-        r.setUniform(program, "extdiffuseColor", 0.9f*orange);
-        r.setUniform(program, "intdiffuseColor", 0.4f*orange);
+        r.setUniform(program, "extdiffuseColor", 0.9f*p.color);
+        r.setUniform(program, "intdiffuseColor", 0.4f*p.color);
         r.setUniform(program, "specularColor", 0.6f*white);
         r.setUniform(program, "phongExponent", 20.f);
 		r.drawTriangles(planeObject);
@@ -175,15 +175,17 @@ int main() {
 			r.setUniform(program, "specularColor", 0.7f*white + 0.2f*spheres[cursphere]->color);
 			r.drawTriangles(sphereObjects[cursphere]);
 
-			r.setupWireFrame();
-
-        	glm::vec3 black(0.0f, 0.0f, 0.0f);
-        	r.setUniform(program, "ambientColor", black);
-        	r.setUniform(program, "extdiffuseColor", black);
-        	r.setUniform(program, "intdiffuseColor", black);
-        	r.setUniform(program, "specularColor", black);
-        	r.setUniform(program, "phongExponent", 0.f);
-			r.drawEdges(sphereObjects[cursphere]);
+			if(shadeSphereEdges)
+			{
+				r.setupWireFrame();
+				glm::vec3 black(0.0f, 0.0f, 0.0f);
+				r.setUniform(program, "ambientColor", black);
+				r.setUniform(program, "extdiffuseColor", black);
+				r.setUniform(program, "intdiffuseColor", black);
+				r.setUniform(program, "specularColor", black);
+				r.setUniform(program, "phongExponent", 0.f);
+				r.drawEdges(sphereObjects[cursphere]);
+			}
 		}
 
 		r.setupWireFrame();

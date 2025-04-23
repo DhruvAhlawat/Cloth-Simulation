@@ -47,7 +47,7 @@ COL781::OpenGL::Object Plane::setupObject(COL781::OpenGL::Rasterizer &r)
     return object;
 }
 
-Plane::Plane(float offset, vec3 normal, vec3 color, float coeff_friction , float coeff_restitution)
+Plane::Plane(float offset, vec3 normal, float size,  vec3 color, float coeff_friction , float coeff_restitution)
 {
     this->offset = offset;
     this->normal = normal;
@@ -55,7 +55,7 @@ Plane::Plane(float offset, vec3 normal, vec3 color, float coeff_friction , float
     this->coeff_friction = coeff_friction;
     this->coeff_restitution = coeff_restitution;
 
-    positions = createPlaneVertices(normal, offset, 1.0f); // Create a square plane with side length 1.0
+    positions = createPlaneVertices(normal, offset, size); // Create a square plane with side length 1.0
     normals = std::vector<vec3>(4, normal); // All normals are the same for a flat plane
     triangles = {ivec3(0, 1, 2), ivec3(0, 2, 3)}; // Two triangles to form the square
     edges = {ivec2(0, 1), ivec2(1, 2), ivec2(2, 3), ivec2(3, 0)}; // Edges of the square
@@ -112,7 +112,7 @@ void handlePlaneCollisions(Cloth &c, Plane &p, float coeff)
             float prevPlanePos = glm::dot(p.normal, c.positions[cur]); //positions is the unupdated position so it is previous timestep position.
             float planePos = glm::dot(p.normal, curpos);
             
-            if(planePos <= p.offset) //then we assume it is in contact. it shoudl always be above p.offset since it is an infinite plane not a finite one.
+            if(planePos <= p.offset + p.gap) //then we assume it is in contact. it shoudl always be above p.offset since it is an infinite plane not a finite one.
             {
                 //we have a collision. now we will compute the velocities along the normal direction. 
                 float clothSpeed = glm::dot(c.velocities[cur], p.normal);
@@ -269,7 +269,7 @@ void Cloth::updateConstraints(vector<Sphere*> spheres,Plane &p, int solverIterat
         for(int i = 0; i < spheres.size(); i++)
         {
             handleCollisions(*this, *spheres[i], spheres[i]->coeff_restitution);
-        
+            handlePlaneCollisions(*this, p, p.coeff_restitution);
         }
     }
 
@@ -334,7 +334,7 @@ void Cloth::handleCollisionForces(int i, int j, vector<Sphere*> spheres, Plane &
     //now we check collisions with the plane. 
     float planepos = glm::dot(p.normal, curpos); 
     float prevplanepos = glm::dot(p.normal, positions[cur]); //positions is the unupdated position so it is previous timestep position.
-    if(-p.gap <= planepos && planepos < p.gap)  //then we consider it a collision with the plane.
+    if(-p.gap <= (planepos - p.offset) && (planepos - p.offset) < p.gap)  //then we consider it a collision with the plane.
     {
         //if we were previously above it and in this frame we are down, then we reset it to 0.
  //we will simply take the component of them along the normal and reduce it to 0.

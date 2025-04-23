@@ -26,7 +26,7 @@ class Plane
 	{
 
 	}
-	Plane(float offset, vec3 normal, vec3 color = vec3(0.5, 0.5, 0.5), float coeff_friction = 0.1, float coeff_restitution = 0.02);
+	Plane(float offset, vec3 normal,float size = 3, vec3 color = vec3(0.5, 0.5, 0.5), float coeff_friction = 0.1, float coeff_restitution = 0.02);
 	// {
 	// 	this->offset = offset;
 	// 	this->normal = normal;
